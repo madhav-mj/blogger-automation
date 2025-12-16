@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Blogger Auto Post</title>
+  <style>
+    body {
+      background:#0f0f0f;
+      color:#fff;
+      font-family:Arial;
+      padding:40px;
+    }
+    input, button {
+      width:100%;
+      padding:12px;
+      margin-top:10px;
+      font-size:16px;
+    }
+    button {
+      background:#00ff99;
+      border:none;
+      cursor:pointer;
+    }
+  </style>
+</head>
+<body>
+
+<h2>Blogger Auto Post</h2>
+
+<input id="title" placeholder="Enter blog title" />
+<button onclick="publish()">Publish</button>
+<p id="status"></p>
+
+<script>
+async function publish() {
+  const title = document.getElementById("title").value;
+  document.getElementById("status").innerText = "Publishing...";
+
+  const res = await fetch("/api/publish", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ title })
+  });
+
+  const data = await res.json();
+  document.getElementById("status").innerText =
+    data.success ? "Published ✅" : "Failed ❌";
+}
+</script>
+
+</body>
+</html>
