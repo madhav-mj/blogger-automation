@@ -14,7 +14,7 @@ export default async function handler(req, res) {
 
     // 🔹 Gemini (UPDATED MODEL)
 const geminiRes = await axios.post(
-  `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash-001:generateContent?key=${process.env.GEMINI_API_KEY}`,
+  "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent",
   {
     contents: [
       {
@@ -37,8 +37,15 @@ Rules:
       }
     ]
   },
-  { timeout: 20000 }
+  {
+    headers: {
+      "Content-Type": "application/json",
+      "x-goog-api-key": process.env.GEMINI_API_KEY
+    },
+    timeout: 20000
+  }
 );
+
 
     const html =
       geminiRes.data?.candidates?.[0]?.content?.parts?.[0]?.text;
