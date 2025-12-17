@@ -9,7 +9,6 @@
     "deploy": "vercel --prod"
   },
   "dependencies": {
-    "axios": "^1.6.0",
     "googleapis": "^126.0.0"
   },
   "devDependencies": {

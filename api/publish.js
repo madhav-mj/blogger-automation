@@ -1,4 +1,3 @@
-import axios from 'axios';
 import { google } from 'googleapis';
 
 export default async function handler(req, res) {
@@ -65,19 +64,19 @@ export default async function handler(req, res) {
 
     console.log('Starting blog generation...');
 
-    // Step 1: Generate content with Gemini
+    // Step 1: Generate content with Gemini (using built-in fetch)
     console.log('Generating content with Gemini...');
-    
-    const geminiResponse = await axios.post(
-      `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
-      {
-        contents: [
-          {
-            role: "user",
-            parts: [
-              {
-                text: `Write a detailed, SEO-friendly blog post in HTML about "${title}".
-                
+
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`;
+
+    const geminiPayload = {
+      contents: [
+        {
+          role: 'user',
+          parts: [
+            {
+              text: `Write a detailed, SEO-friendly blog post in HTML about "${title}".
+
                 Requirements:
                 - Language: Hinglish (Hindi + English mix)
                 - Use HTML tags: <h2>, <h3>, <p>, <ul>, <li>
@@ -87,7 +86,7 @@ export default async function handler(req, res) {
                 - Include 3-4 main sections
                 - Add bullet points where appropriate
                 - End with a conclusion
-                
+
                 Format example:
                 <h2>Main Topic</h2>
                 <p>Introduction paragraph...</p>
@@ -99,27 +98,51 @@ export default async function handler(req, res) {
                 </ul>
                 <h2>Conclusion</h2>
                 <p>Summary...</p>`
-              }
-            ]
-          }
-        ],
-        generationConfig: {
-          temperature: 0.7,
-          topK: 40,
-          topP: 0.8,
-          maxOutputTokens: 2000
+            }
+          ]
         }
-      },
-      {
-        headers: { 
-          'Content-Type': 'application/json'
-        },
-        timeout: 30000
+      ],
+      generationConfig: {
+        temperature: 0.7,
+        topK: 40,
+        topP: 0.8,
+        maxOutputTokens: 2000
       }
-    );
+    };
 
-    const html = geminiResponse.data?.candidates?.[0]?.content?.parts?.[0]?.text;
-    
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30000);
+
+    const geminiResp = await fetch(geminiUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(geminiPayload),
+      signal: controller.signal
+    }).catch(err => {
+      if (err.name === 'AbortError') throw new Error('Gemini request timed out');
+      throw err;
+    });
+
+    clearTimeout(timeout);
+
+    const respText = await geminiResp.text();
+
+    let geminiData;
+    try {
+      geminiData = respText ? JSON.parse(respText) : {};
+    } catch (parseErr) {
+      throw new Error(`Unexpected response from Gemini: ${respText.slice(0, 300)}`);
+    }
+
+    if (!geminiResp.ok) {
+      const serverMessage = geminiData?.error?.message || respText;
+      const status = geminiResp.status || 500;
+      const err = new Error(`Gemini API error: ${serverMessage}`);
+      err.status = status;
+      throw err;
+    }
+
+    const html = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text;
     if (!html) {
       throw new Error('Gemini API returned empty content');
     }
