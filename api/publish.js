@@ -227,7 +227,7 @@ export default async function handler(req, res) {
     const auth = new google.auth.OAuth2(
       process.env.BLOGGER_CLIENT_ID,
       process.env.BLOGGER_CLIENT_SECRET,
-      process.env.BLOGGER_REDIRECT_URI || 'https://blogger-automation-eight.vercel.app/api/auth/callback'
+      process.env.BLOGGER_REDIRECT_URI || 'https://blogger-automation-eight.vercel.app'
     );
 
     auth.setCredentials({
