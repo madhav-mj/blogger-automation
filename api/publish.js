@@ -13,11 +13,14 @@ export default async function handler(req, res) {
     }
 
     // 🔹 Gemini (UPDATED MODEL)
-    const geminiRes = await axios.post(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
+const geminiRes = await axios.post(
+  `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash-001:generateContent?key=${process.env.GEMINI_API_KEY}`,
+  {
+    contents: [
       {
-        contents: [{
-          parts: [{
+        role: "user",
+        parts: [
+          {
             text: `
 Write a long SEO-friendly blog post in HTML.
 Title: ${title}
@@ -29,11 +32,13 @@ Rules:
 - No emojis
 - Do NOT include <html>, <body>, <head>
 `
-          }]
-        }]
-      },
-      { timeout: 20000 } // Vercel-safe
-    );
+          }
+        ]
+      }
+    ]
+  },
+  { timeout: 20000 }
+);
 
     const html =
       geminiRes.data?.candidates?.[0]?.content?.parts?.[0]?.text;
