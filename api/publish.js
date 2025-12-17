@@ -1,5 +1,6 @@
 import { google } from 'googleapis';
 
+
 export default async function handler(req, res) {
   // Set CORS headers
   res.setHeader('Access-Control-Allow-Credentials', true);
@@ -46,6 +47,16 @@ export default async function handler(req, res) {
         success: false, 
         error: 'Title must be at least 5 characters long' 
       });
+    }
+
+    // Load local .env in non-production for easier local testing
+    if (process.env.NODE_ENV !== 'production') {
+      try {
+        const dotenv = await import('dotenv');
+        dotenv.config();
+      } catch (e) {
+        // ignore if dotenv isn't available
+      }
     }
 
     // Validate environment variables
@@ -155,7 +166,7 @@ export default async function handler(req, res) {
     const auth = new google.auth.OAuth2(
       process.env.BLOGGER_CLIENT_ID,
       process.env.BLOGGER_CLIENT_SECRET,
-      process.env.BLOGGER_REDIRECT_URI || 'https://your-app.vercel.app/api/auth/callback'
+      process.env.BLOGGER_REDIRECT_URI || 'https://blogger-automation-eight.vercel.app/api/auth/callback'
     );
 
     auth.setCredentials({
