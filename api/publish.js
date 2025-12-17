@@ -146,8 +146,34 @@ export default async function handler(req, res) {
     }
 
     if (!geminiResp.ok) {
-      const serverMessage = geminiData?.error?.message || respText;
+      let serverMessage = geminiData?.error?.message || respText;
       const status = geminiResp.status || 500;
+
+      // If the model isn't found or generateContent isn't supported, try listing available models
+      if (/is not found|not supported for generateContent/i.test(serverMessage)) {
+        try {
+          const listUrl = `https://generativelanguage.googleapis.com/v1/models?key=${process.env.GEMINI_API_KEY}`;
+          const listResp = await fetch(listUrl);
+          const listText = await listResp.text();
+          let listData;
+          try {
+            listData = listText ? JSON.parse(listText) : {};
+          } catch (e) {
+            listData = null;
+          }
+          const models = listData?.models?.map(m => m.name) || [];
+          serverMessage = `${serverMessage}. Available models: ${models.slice(0,20).join(', ') || 'none'}`;
+          const err = new Error(`Gemini API error: ${serverMessage}`);
+          err.status = status;
+          err.availableModels = models;
+          throw err;
+        } catch (listErr) {
+          const err = new Error(`Gemini API error: ${serverMessage} (failed to list models: ${listErr.message})`);
+          err.status = status;
+          throw err;
+        }
+      }
+
       const err = new Error(`Gemini API error: ${serverMessage}`);
       err.status = status;
       throw err;
