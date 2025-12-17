@@ -151,27 +151,62 @@ export default async function handler(req, res) {
 
       // If the model isn't found or generateContent isn't supported, try listing available models
       if (/is not found|not supported for generateContent/i.test(serverMessage)) {
-        try {
-          const listUrl = `https://generativelanguage.googleapis.com/v1/models?key=${process.env.GEMINI_API_KEY}`;
-          const listResp = await fetch(listUrl);
-          const listText = await listResp.text();
-          let listData;
+        // Try to list available models and retry with a compatible model
+        const listUrl = `https://generativelanguage.googleapis.com/v1/models?key=${process.env.GEMINI_API_KEY}`;
+        const listResp = await fetch(listUrl).catch(() => null);
+        let models = [];
+        if (listResp) {
+          const listText = await listResp.text().catch(() => '');
           try {
-            listData = listText ? JSON.parse(listText) : {};
+            const listData = listText ? JSON.parse(listText) : {};
+            models = listData?.models?.map(m => m.name) || [];
           } catch (e) {
-            listData = null;
+            models = [];
           }
-          const models = listData?.models?.map(m => m.name) || [];
-          serverMessage = `${serverMessage}. Available models: ${models.slice(0,20).join(', ') || 'none'}`;
-          const err = new Error(`Gemini API error: ${serverMessage}`);
-          err.status = status;
-          err.availableModels = models;
-          throw err;
-        } catch (listErr) {
-          const err = new Error(`Gemini API error: ${serverMessage} (failed to list models: ${listErr.message})`);
-          err.status = status;
-          throw err;
         }
+
+        // Prefer recent generation-capable models (flash/pro), fallback to any gemini model
+        const candidate = models.find(m => /gemini-2.*(flash|pro|lite)|gemini-1.*flash/i.test(m)) || models.find(m => /gemini/i.test(m));
+
+        if (candidate) {
+          // Retry generateContent with the candidate model
+          try {
+            const retryUrl = `https://generativelanguage.googleapis.com/v1/models/${candidate}:generateContent?key=${process.env.GEMINI_API_KEY}`;
+            const retryResp = await fetch(retryUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(geminiPayload)
+            }).catch(err => { throw err; });
+
+            const retryText = await retryResp.text();
+            let retryData;
+            try {
+              retryData = retryText ? JSON.parse(retryText) : {};
+            } catch (e) {
+              throw new Error(`Retry response not JSON: ${retryText.slice(0,300)}`);
+            }
+
+            if (!retryResp.ok) {
+              const retryMsg = retryData?.error?.message || retryText;
+              throw new Error(`Retry with model ${candidate} failed: ${retryMsg}`);
+            }
+
+            // Use the successful retry data
+            geminiData = retryData;
+          } catch (retryErr) {
+            const err = new Error(`${serverMessage}. Retry with ${candidate} failed: ${retryErr.message}`);
+            err.status = status;
+            err.availableModels = models;
+            throw err;
+          }
+        }
+
+        // If no candidate or retry didn't run, include available models in the error
+        serverMessage = `${serverMessage}. Available models: ${models.slice(0,20).join(', ') || 'none'}`;
+        const err = new Error(`Gemini API error: ${serverMessage}`);
+        err.status = status;
+        err.availableModels = models;
+        throw err;
       }
 
       const err = new Error(`Gemini API error: ${serverMessage}`);
