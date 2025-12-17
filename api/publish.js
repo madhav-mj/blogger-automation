@@ -8,13 +8,13 @@ export default async function handler(req, res) {
 
   try {
     const { title } = req.body;
-    if (!title) {
-      return res.status(400).json({ error: "Title required" });
+    if (!title || title.trim().length < 5) {
+      return res.status(400).json({ error: "Valid title required" });
     }
 
-    // Gemini
+    // 🔹 Gemini (UPDATED MODEL)
     const geminiRes = await axios.post(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${process.env.GEMINI_API_KEY}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
       {
         contents: [{
           parts: [{
@@ -23,20 +23,26 @@ Write a long SEO-friendly blog post in HTML.
 Title: ${title}
 
 Rules:
-- Hinglish
+- Language: Hinglish
 - Use <h2>, <h3>, <p>, <ul>, <li>
 - No markdown
 - No emojis
-- No <html>, <body>, <head>
+- Do NOT include <html>, <body>, <head>
 `
           }]
         }]
-      }
+      },
+      { timeout: 20000 } // Vercel-safe
     );
 
-    const html = geminiRes.data.candidates[0].content.parts[0].text;
+    const html =
+      geminiRes.data?.candidates?.[0]?.content?.parts?.[0]?.text;
 
-    // Blogger
+    if (!html) {
+      return res.status(500).json({ error: "Gemini returned empty content" });
+    }
+
+    // 🔹 Blogger
     const oauth2Client = new google.auth.OAuth2(
       process.env.CLIENT_ID,
       process.env.CLIENT_SECRET,
@@ -63,7 +69,9 @@ Rules:
     res.json({ success: true });
 
   } catch (err) {
-    console.error(err.response?.data || err.message);
+    console.error(
+      err.response?.data || err.message || err
+    );
     res.status(500).json({ error: "Publishing failed" });
   }
 }
